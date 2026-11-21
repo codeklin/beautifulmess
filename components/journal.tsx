@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { categoryLabels, formatDate, sampleWritings, type Category, type Writing } from '@/lib/writings'
 
 const filters: Array<{ label: string; value: Category | 'all' }> = [
@@ -9,8 +9,8 @@ const filters: Array<{ label: string; value: Category | 'all' }> = [
 ]
 
 function ThemeToggle() {
-  const [dark, setDark] = useState(false)
-  return <button className="text-button theme-toggle" onClick={() => { setDark(!dark); document.documentElement.dataset.theme = dark ? 'light' : 'dark' }} aria-label={`Switch to ${dark ? 'light' : 'dark'} mode`}>{dark ? 'Light' : 'Dark'}</button>
+  const [dark, setDark] = useState(() => typeof document !== 'undefined' && document.documentElement.dataset.theme === 'dark')
+  return <button className="text-button theme-toggle" onClick={() => { setDark((current) => { document.documentElement.dataset.theme = current ? 'light' : 'dark'; return !current }) }} aria-label={`Switch to ${dark ? 'light' : 'dark'} mode`}>{dark ? 'Light' : 'Dark'}</button>
 }
 
 function Header({ active, onSelect }: { active?: string; onSelect?: (value: Category | 'all') => void }) {
@@ -59,8 +59,13 @@ function ShareLink({ slug }: { slug: string }) {
 }
 
 function AudioPlayer({ src }: { src: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
-  return <div className="audio-player"><audio src={src} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} controls className="audio-native" aria-label="Spoken word recording"/><button className="text-button" onClick={() => { const audio = document.querySelector<HTMLAudioElement>('.audio-native'); if (audio?.paused) void audio.play(); else audio?.pause() }}>{playing ? 'Pause' : 'Play'}</button><span className="audio-line"/><span className="audio-time">Audio recording</span></div>
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const remaining = Math.max(0, duration - currentTime)
+  const timeLabel = `${Math.floor(remaining / 60)}:${String(Math.floor(remaining % 60)).padStart(2, '0')}`
+  return <div className="audio-player"><audio ref={audioRef} src={src} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)} onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)} onEnded={() => setPlaying(false)} className="audio-native"/><button className="text-button" onClick={() => { const audio = audioRef.current; if (audio?.paused) void audio.play(); else audio?.pause() }}>{playing ? 'Pause' : 'Play'}</button><span className="audio-line" role="progressbar" aria-label="Audio progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={duration ? Math.round((currentTime / duration) * 100) : 0}><span className="audio-progress" style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}/></span><span className="audio-time">{timeLabel}</span></div>
 }
 
 export function WriterDesk() {
