@@ -36,6 +36,20 @@ function ThemeToggle() {
 
 function Header({ active, onSelect }: { active?: string; onSelect?: (value: Category | 'all') => void }) {
   const [menuOpen, setMenuOpen] = useState(false)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [menuOpen])
+
   return (
     <header className="site-header">
       <Link href="/" className="wordmark">BeautifulMess</Link>
@@ -61,17 +75,39 @@ function Header({ active, onSelect }: { active?: string; onSelect?: (value: Cate
         <ThemeToggle />
       </span>
       <button
-        className="menu-toggle"
+        className={`menu-toggle ${menuOpen ? 'is-open' : ''}`}
         type="button"
         aria-label={menuOpen ? 'Close menu' : 'Open menu'}
         aria-expanded={menuOpen}
         aria-controls="journal-menu"
         onClick={() => setMenuOpen((open) => !open)}
       >
-        {menuOpen ? 'Close' : 'Menu'}
+        <span className="hamburger-icon" aria-hidden="true">
+          <span className="hamburger-line line-top" />
+          <span className="hamburger-line line-mid" />
+          <span className="hamburger-line line-bot" />
+        </span>
+        <span className="menu-word">{menuOpen ? 'Close' : 'Menu'}</span>
       </button>
       {menuOpen && (
         <nav className="mobile-menu" id="journal-menu" aria-label="Journal menu">
+          <div className="mobile-menu-top">
+            <Link href="/" className="wordmark mobile-menu-wordmark" onClick={() => setMenuOpen(false)}>
+              BeautifulMess
+            </Link>
+            <button
+              type="button"
+              className="mobile-close-btn"
+              onClick={() => setMenuOpen(false)}
+              aria-label="Close menu"
+            >
+              <span className="close-cross" aria-hidden="true">
+                <span className="cross-line cross-1" />
+                <span className="cross-line cross-2" />
+              </span>
+              <span className="close-label">Close</span>
+            </button>
+          </div>
           {onSelect ? (
             <div className="mobile-filters">
               {filters.map((item) => (

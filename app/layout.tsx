@@ -6,21 +6,8 @@ export const metadata: Metadata = {
   title: 'BeautifulMess | A writer’s journal',
   description: 'A small collection of poems, prose, spoken word, and notes from the day.',
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+    icon: '/favicon_io/favicon.ico',
+    apple: '/favicon_io/apple-touch-icon.png',
   },
 }
 

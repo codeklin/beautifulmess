@@ -212,6 +212,169 @@ button {
   color: var(--capsule-text);
 }
 
+/* Hamburger Toggle Button */
+.menu-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--capsule-text);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 180ms ease;
+}
+
+.menu-toggle:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--capsule-text);
+}
+
+.hamburger-icon {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 14px;
+  height: 12px;
+  gap: 3px;
+}
+
+.hamburger-line {
+  display: block;
+  width: 14px;
+  height: 1.5px;
+  background-color: currentColor;
+  border-radius: 1px;
+  transition: transform 200ms ease, opacity 200ms ease, width 200ms ease;
+}
+
+.hamburger-line.line-mid {
+  width: 10px;
+}
+
+.menu-toggle:hover .hamburger-line.line-mid {
+  width: 14px;
+}
+
+.menu-toggle.is-open .hamburger-line.line-top {
+  transform: translateY(4.5px) rotate(45deg);
+}
+
+.menu-toggle.is-open .hamburger-line.line-mid {
+  opacity: 0;
+  width: 0;
+}
+
+.menu-toggle.is-open .hamburger-line.line-bot {
+  transform: translateY(-4.5px) rotate(-45deg);
+}
+
+/* Mobile Menu Overlay */
+.mobile-menu {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 28px;
+  overflow-y: auto;
+  padding: 24px max(24px, calc((100vw - 680px) / 2)) 40px;
+  background-color: var(--paper);
+}
+
+.mobile-menu-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.mobile-menu-wordmark {
+  color: var(--ink);
+  font-size: 20px;
+}
+
+.mobile-close-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  background-color: var(--capsule-bg);
+  color: var(--capsule-text);
+  border: 1px solid var(--capsule-border);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(26, 20, 16, 0.12);
+  transition: all 180ms ease;
+}
+
+.mobile-close-btn:hover {
+  background-color: var(--accent);
+  color: #1A1410;
+  border-color: var(--accent);
+}
+
+.close-cross {
+  position: relative;
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+}
+
+.cross-line {
+  position: absolute;
+  top: 5px;
+  left: 0;
+  width: 12px;
+  height: 1.5px;
+  background-color: currentColor;
+  border-radius: 1px;
+}
+
+.cross-1 {
+  transform: rotate(45deg);
+}
+
+.cross-2 {
+  transform: rotate(-45deg);
+}
+
+.mobile-filters {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.mobile-filters .filter-button {
+  font-size: 16px;
+  padding: 8px 20px;
+  color: var(--ink);
+}
+
+.mobile-filters .filter-button.selected {
+  background-color: var(--accent);
+  color: #1A1410;
+}
+
+.menu-desk-link {
+  width: fit-content;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-top: 8px;
+  padding-left: 20px;
+}
+
 /* Journal Introduction */
 .journal-intro {
   padding: 68px 0 44px;
@@ -786,59 +949,6 @@ p {
   .mobile-theme-toggle {
     display: block;
     margin-left: auto;
-  }
-
-  .menu-toggle {
-    position: relative;
-    z-index: 11;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 6px 14px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--capsule-text);
-    font-family: var(--sans);
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  .mobile-menu {
-    position: fixed;
-    z-index: 25;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    gap: 32px;
-    overflow-y: auto;
-    padding: 104px max(24px, calc((100vw - 680px) / 2)) 32px;
-    background-color: var(--paper);
-  }
-
-  .mobile-filters {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 14px;
-  }
-
-  .mobile-filters .filter-button {
-    font-size: 15px;
-    padding: 8px 18px;
-    color: var(--ink);
-  }
-
-  .mobile-filters .filter-button.selected {
-    background-color: var(--accent);
-    color: #1A1410;
-  }
-
-  .menu-desk-link {
-    width: fit-content;
-    font-size: 14px;
-    color: var(--ink);
-    margin-top: 8px;
   }
 }
 
