@@ -69,7 +69,12 @@ function parseWriting(value: unknown): WritingInput | null {
     return null
   }
 
-  if (status === 'scheduled' && !scheduled_for) return null
+  if (
+    status === 'scheduled' &&
+    (!scheduled_for || Date.parse(scheduled_for) <= Date.now())
+  ) {
+    return null
+  }
   if ((status === 'draft' && is_published) || (status !== 'draft' && !is_published)) return null
   if (scheduled_for && Number.isNaN(Date.parse(scheduled_for))) return null
   if (created_at && Number.isNaN(Date.parse(created_at))) return null
@@ -93,6 +98,14 @@ function parseWriting(value: unknown): WritingInput | null {
     scheduled_for,
     ...(created_at ? { created_at } : {}),
   }
+}
+
+function hasPastSchedule(value: unknown): boolean {
+  return isRecord(value) &&
+    value.status === 'scheduled' &&
+    typeof value.scheduled_for === 'string' &&
+    !Number.isNaN(Date.parse(value.scheduled_for)) &&
+    Date.parse(value.scheduled_for) <= Date.now()
 }
 
 async function readJson(request: NextRequest): Promise<unknown | NextResponse> {
@@ -129,6 +142,9 @@ export async function POST(request: NextRequest) {
   if (!entries.length || entries.length > 500) {
     return jsonResponse({ message: 'Choose between 1 and 500 writings to save.' }, 400)
   }
+  if (entries.some(hasPastSchedule)) {
+    return jsonResponse({ message: 'Choose a future date and time, or publish immediately.' }, 400)
+  }
   const writings: WritingInput[] = []
   for (const entry of entries) {
     const writing = parseWriting(entry)
@@ -154,6 +170,9 @@ export async function PATCH(request: NextRequest) {
     return body instanceof NextResponse
       ? body
       : jsonResponse({ message: 'Choose a writing to update.' }, 400)
+  }
+  if (hasPastSchedule(body)) {
+    return jsonResponse({ message: 'Choose a future date and time, or publish immediately.' }, 400)
   }
   const writing = parseWriting(body)
   if (!writing) return jsonResponse({ message: 'The writing has invalid details.' }, 400)

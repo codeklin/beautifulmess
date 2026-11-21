@@ -13,11 +13,36 @@ create table if not exists public.writings (
   created_at timestamptz default now()
 );
 
+create table if not exists public.book_listing (
+  id smallint primary key default 1 check (id = 1),
+  title text not null,
+  description text not null default '',
+  purchase_url text,
+  cover_image_url text,
+  updated_at timestamptz not null default now()
+);
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'book-covers',
+  'book-covers',
+  false,
+  5242880,
+  array['image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do update set
+  public = false,
+  file_size_limit = 5242880,
+  allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp'];
+
 alter table public.writings enable row level security;
+alter table public.book_listing enable row level security;
 
 grant select on public.writings to anon, authenticated;
 revoke insert, update, delete on public.writings from anon;
 grant insert, update, delete on public.writings to authenticated;
+grant select on public.book_listing to anon, authenticated;
+grant all on public.book_listing to service_role;
 
 drop policy if exists "Anyone can read published writings" on public.writings;
 drop policy if exists "Authenticated users can insert writings" on public.writings;
@@ -26,6 +51,7 @@ drop policy if exists "Authenticated users can delete writings" on public.writin
 drop policy if exists "Only owner can insert writings" on public.writings;
 drop policy if exists "Only owner can update writings" on public.writings;
 drop policy if exists "Only owner can delete writings" on public.writings;
+drop policy if exists "Anyone can read the book listing" on public.book_listing;
 
 -- Keep this owner address aligned with ADMIN_EMAIL in the app environment.
 create policy "Anyone can read published writings" on public.writings
@@ -52,6 +78,9 @@ create policy "Only owner can update writings" on public.writings
 create policy "Only owner can delete writings" on public.writings
   for delete to authenticated
   using ((auth.jwt() ->> 'email') = 'clickcom007@yahoo.com');
+
+create policy "Anyone can read the book listing" on public.book_listing
+  for select to anon, authenticated using (true);
 
 -- Extensions for automated background jobs and network requests
 create extension if not exists pg_cron;

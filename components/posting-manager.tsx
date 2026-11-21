@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useId } from 'react'
+import { useEffect, useState, useId, useRef } from 'react'
 import {
   categoryLabels,
   formatDateTime,
@@ -57,8 +57,17 @@ function readLegacyWritings(): WritingInput[] {
       throw new Error('A saved browser writing has invalid details.')
     }
 
-    const normalizedStatus: WritingStatus =
+    let normalizedStatus: WritingStatus =
       status === 'draft' || status === 'scheduled' ? status : 'published'
+    let normalizedSchedule = typeof scheduled_for === 'string' ? scheduled_for : null
+    if (
+      normalizedStatus === 'scheduled' &&
+      normalizedSchedule &&
+      Date.parse(normalizedSchedule) <= Date.now()
+    ) {
+      normalizedStatus = 'published'
+      normalizedSchedule = null
+    }
     return {
       title,
       slug,
@@ -67,7 +76,7 @@ function readLegacyWritings(): WritingInput[] {
       audio_url: typeof value.audio_url === 'string' ? value.audio_url : null,
       is_published: normalizedStatus !== 'draft',
       status: normalizedStatus,
-      scheduled_for: typeof scheduled_for === 'string' ? scheduled_for : null,
+      scheduled_for: normalizedSchedule,
       created_at,
     }
   })
@@ -123,13 +132,16 @@ function makeSlug(title: string, suffix = crypto.randomUUID().slice(0, 8)) {
 function getDefaultScheduleTime(): string {
   const date = new Date(Date.now() + 24 * 60 * 60 * 1000)
   date.setMinutes(0, 0, 0)
-  const offset = date.getTimezoneOffset()
-  const local = new Date(date.getTime() - offset * 60 * 1000)
+  return toLocalDateTime(date)
+}
+
+function toLocalDateTime(date: Date): string {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000)
   return local.toISOString().slice(0, 16)
 }
 
 export function PostingManager() {
-  const [activeTab, setActiveTab] = useState<'compose' | 'ledger'>('compose')
+  const [activeTab, setActiveTab] = useState<'compose' | 'ledger'>('ledger')
   const [writings, setWritings] = useState<Writing[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -143,16 +155,29 @@ export function PostingManager() {
   const [title, setTitle] = useState('')
   const [isSpokenWord, setIsSpokenWord] = useState(false)
   const [content, setContent] = useState('')
+  const [linkRange, setLinkRange] = useState<{ start: number; end: number } | null>(null)
+  const [linkText, setLinkText] = useState('')
+  const [linkUrl, setLinkUrl] = useState('')
+  const [linkError, setLinkError] = useState('')
   const [audioUrl, setAudioUrl] = useState('')
   const [publishMode, setPublishMode] = useState<'now' | 'schedule' | 'draft'>('schedule')
-  const [scheduledFor, setScheduledFor] = useState(getDefaultScheduleTime)
+  const [scheduledFor, setScheduledFor] = useState('')
+  const [minimumScheduleTime, setMinimumScheduleTime] = useState('')
   const [message, setMessage] = useState('')
   const [ledgerFilter, setLedgerFilter] = useState<'all' | 'scheduled' | 'published' | 'draft'>('all')
 
   const titleInputId = useId()
   const contentInputId = useId()
+  const linkTextInputId = useId()
+  const linkUrlInputId = useId()
   const audioInputId = useId()
   const scheduleInputId = useId()
+  const contentTextareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    setScheduledFor(getDefaultScheduleTime())
+    setMinimumScheduleTime(toLocalDateTime(new Date()))
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -226,9 +251,69 @@ export function PostingManager() {
     setTitle('')
     setIsSpokenWord(false)
     setContent('')
+    setLinkRange(null)
+    setLinkError('')
     setAudioUrl('')
     setPublishMode('schedule')
     setScheduledFor(getDefaultScheduleTime())
+    setMinimumScheduleTime(toLocalDateTime(new Date()))
+  }
+
+  function openLinkEditor() {
+    const textarea = contentTextareaRef.current
+    if (!textarea) return
+
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const selectedText = content.slice(start, end)
+    if (!selectedText.trim() || selectedText.includes('\n')) {
+      setLinkRange(null)
+      setLinkError('Select one or more words on a single line first.')
+      return
+    }
+
+    setLinkRange({ start, end })
+    setLinkText(selectedText.trim())
+    setLinkUrl('')
+    setLinkError('')
+  }
+
+  function insertSelectedLink() {
+    if (!linkRange) return
+
+    const destination = linkUrl.trim()
+    const normalizedDestination = /^https?:\/\//i.test(destination)
+      ? destination
+      : `https://${destination}`
+    let parsedDestination: URL
+    try {
+      parsedDestination = new URL(normalizedDestination)
+    } catch {
+      setLinkError('Enter a valid website address.')
+      return
+    }
+    if (parsedDestination.protocol !== 'http:' && parsedDestination.protocol !== 'https:') {
+      setLinkError('Use a website address that begins with http:// or https://.')
+      return
+    }
+    if (!linkText.trim() || /[\r\n]/.test(linkText)) {
+      setLinkError('Enter link text on a single line.')
+      return
+    }
+
+    const markup = `[${linkText.trim()}](${parsedDestination.href})`
+    const updatedContent =
+      content.slice(0, linkRange.start) + markup + content.slice(linkRange.end)
+    setContent(updatedContent)
+    setLinkRange(null)
+    setLinkError('')
+    window.requestAnimationFrame(() => {
+      const textarea = contentTextareaRef.current
+      if (!textarea) return
+      const cursor = linkRange.start + markup.length
+      textarea.focus()
+      textarea.setSelectionRange(cursor, cursor)
+    })
   }
 
   async function handleSave(event: React.FormEvent) {
@@ -266,14 +351,12 @@ export function PostingManager() {
         return
       }
       if (parsedTime <= Date.now()) {
-        status = 'published'
-        isPublished = true
-        scheduleIso = null
-      } else {
-        status = 'scheduled'
-        isPublished = true
-        scheduleIso = new Date(parsedTime).toISOString()
+        setMessage('Choose a future date and time, or select Publish immediately.')
+        return
       }
+      status = 'scheduled'
+      isPublished = true
+      scheduleIso = new Date(parsedTime).toISOString()
     }
 
     const existing = editingId ? writings.find((item) => item.id === editingId) : undefined
@@ -313,6 +396,8 @@ export function PostingManager() {
     setTitle(item.title)
     setIsSpokenWord(item.category === 'spoken_word')
     setContent(item.content)
+    setLinkRange(null)
+    setLinkError('')
     setAudioUrl(item.audio_url || '')
     if (item.status === 'draft') {
       setPublishMode('draft')
@@ -408,11 +493,12 @@ export function PostingManager() {
           onClick={() => {
             setActiveTab('ledger')
             setMessage('')
-            refreshWritings()
+            void refreshWritings().catch((error: unknown) => {
+              setLoadError(getErrorMessage(error, 'Unable to refresh your writings.'))
+            })
           }}
         >
-          Schedule ledger
-          {scheduledCount > 0 && <span className="tab-pill">{scheduledCount}</span>}
+          All writings
         </button>
       </div>
 
@@ -488,6 +574,7 @@ export function PostingManager() {
               )}
             </div>
             <textarea
+              ref={contentTextareaRef}
               id={contentInputId}
               className={`composer-textarea ${isSpokenWord ? 'textarea-spoken-word' : ''}`}
               rows={10}
@@ -500,6 +587,61 @@ export function PostingManager() {
               onChange={(e) => setContent(e.target.value)}
               required
             />
+            <div className="composer-link-tools">
+              <button type="button" className="ledger-action-btn" onClick={openLinkEditor}>
+                Add link to selected words
+              </button>
+              <span>Select words above, then add a website address.</span>
+            </div>
+            {linkRange && (
+              <div className="composer-link-editor">
+                <div className="form-row">
+                  <label className="field-label" htmlFor={linkTextInputId}>Words to link</label>
+                  <input
+                    id={linkTextInputId}
+                    className="composer-text-input"
+                    value={linkText}
+                    onChange={(event) => setLinkText(event.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-row">
+                  <label className="field-label" htmlFor={linkUrlInputId}>Website address</label>
+                  <input
+                    id={linkUrlInputId}
+                    type="text"
+                    inputMode="url"
+                    autoComplete="url"
+                    className="composer-text-input"
+                    placeholder="https://example.com"
+                    value={linkUrl}
+                    onChange={(event) => setLinkUrl(event.target.value)}
+                    required
+                  />
+                </div>
+                {linkError && <p className="link-editor-error" role="alert">{linkError}</p>}
+                <div className="composer-actions">
+                  <button
+                    type="button"
+                    className="ledger-action-btn primary"
+                    onClick={insertSelectedLink}
+                  >
+                    Insert link
+                  </button>
+                  <button
+                    type="button"
+                    className="composer-cancel-btn"
+                    onClick={() => {
+                      setLinkRange(null)
+                      setLinkError('')
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+            {linkError && !linkRange && <p className="link-editor-error" role="alert">{linkError}</p>}
           </div>
 
           {/* Publishing & Scheduler Section */}
@@ -509,7 +651,13 @@ export function PostingManager() {
               <button
                 type="button"
                 className={`schedule-mode-pill ${publishMode === 'schedule' ? 'selected' : ''}`}
-                onClick={() => setPublishMode('schedule')}
+                onClick={() => {
+                  if (!scheduledFor || new Date(scheduledFor).getTime() <= Date.now()) {
+                    setScheduledFor(getDefaultScheduleTime())
+                  }
+                  setMinimumScheduleTime(toLocalDateTime(new Date()))
+                  setPublishMode('schedule')
+                }}
               >
                 Schedule for later
               </button>
@@ -539,6 +687,7 @@ export function PostingManager() {
                   type="datetime-local"
                   className="schedule-datetime-input"
                   value={scheduledFor}
+                  min={minimumScheduleTime}
                   onChange={(e) => setScheduledFor(e.target.value)}
                   required
                 />
@@ -586,9 +735,7 @@ export function PostingManager() {
         </form>
       )}
 
-      {/* Tab 2: Schedule Ledger */}
-      {activeTab === 'ledger' && (
-        <div className="ledger-view">
+      <div className="ledger-view">
           <div className="ledger-filter-bar">
             <button
               type="button"
@@ -689,8 +836,7 @@ export function PostingManager() {
               })
             )}
           </div>
-        </div>
-      )}
+      </div>
     </div>
   )
 }

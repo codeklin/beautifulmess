@@ -2,21 +2,116 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
-import { PostingManager } from '@/components/posting-manager'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import { AdminDashboard } from '@/components/admin-dashboard'
 import { PwaInstallButton, clearAppCacheAndReload } from '@/components/pwa-register'
+import { bookCoverRoute } from '@/lib/book-constants'
 import {
   categoryLabels,
   formatDate,
   type Category,
   type Writing,
 } from '@/lib/writings'
+import type { BookListing } from '@/lib/book-store'
 
 const filters: Array<{ label: string; value: Category | 'all' }> = [
   { label: 'All', value: 'all' },
   { label: 'LinkedIn', value: 'linkedin' },
   { label: 'Spoken Word', value: 'spoken_word' },
 ]
+
+function splitTrailingPunctuation(value: string) {
+  let url = value
+  let trailing = ''
+
+  while (/[.,!?;:)\]}]$/.test(url)) {
+    const last = url[url.length - 1]
+    if (
+      (last === ')' && url.split(')').length <= url.split('(').length) ||
+      (last === ']' && url.split(']').length <= url.split('[').length) ||
+      (last === '}' && url.split('}').length <= url.split('{').length)
+    ) {
+      break
+    }
+    url = url.slice(0, -1)
+    trailing = last + trailing
+  }
+
+  return { url, trailing }
+}
+
+function WritingText({ text }: { text: string }) {
+  const parts: React.ReactNode[] = []
+  const urlPattern = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)|(?<![\w@])(?:https?:\/\/[^\s<>"']+|(?:www\.)?(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?::\d+)?(?:[/?#][^\s<>"']*)?)/gi
+  let position = 0
+  let match: RegExpExecArray | null
+
+  while ((match = urlPattern.exec(text)) !== null) {
+    if (match.index < position) continue
+    parts.push(text.slice(position, match.index))
+
+    if (match[1] !== undefined && match[2] !== undefined) {
+      try {
+        const parsedUrl = new URL(match[2])
+        if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
+          parts.push(
+            <a
+              key={`link-${match.index}`}
+              className="external-writing-link"
+              href={parsedUrl.href}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {match[1]}
+            </a>,
+          )
+        } else {
+          parts.push(match[0])
+        }
+      } catch {
+        parts.push(match[0])
+      }
+      position = match.index + match[0].length
+      continue
+    }
+
+    const { url, trailing } = splitTrailingPunctuation(match[0])
+    if (!url) {
+      parts.push(match[0])
+      position = match.index + match[0].length
+      continue
+    }
+
+    const href = /^https?:\/\//i.test(url) ? url : `https://${url}`
+    let parsedUrl: URL | null = null
+    try {
+      parsedUrl = new URL(href)
+    } catch {
+      // Leave incomplete URLs as plain text.
+    }
+
+    if (parsedUrl && (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:')) {
+      parts.push(
+        <a
+          key={`link-${match.index}`}
+          className="external-writing-link"
+          href={parsedUrl.href}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {url}
+        </a>,
+      )
+    } else {
+      parts.push(url)
+    }
+    parts.push(trailing)
+    position = match.index + match[0].length
+  }
+
+  parts.push(text.slice(position))
+  return <>{parts.map((part, index) => <Fragment key={index}>{part}</Fragment>)}</>
+}
 
 function ThemeToggle() {
   const [dark, setDark] = useState(false)
@@ -85,6 +180,7 @@ function Header({
       ) : showBackLink && (
         <Link href="/" className="back-link">Back to journal</Link>
       )}
+      <Link href="/book" className="book-header-link">Book</Link>
       {showAdminLink && <Link href="/write" className="admin-header-link">Admin</Link>}
       <ThemeToggle />
       <span className="mobile-theme-toggle">
@@ -146,6 +242,9 @@ function Header({
               Back to journal
             </Link>
           )}
+          <Link className="quiet-link" href="/book" onClick={() => setMenuOpen(false)}>
+            Book
+          </Link>
           {showAdminLink && (
             <Link className="quiet-link mobile-admin-link" href="/write" onClick={() => setMenuOpen(false)}>
               Admin
@@ -235,11 +334,14 @@ export function JournalHome({
                     <Link href={`/post/${writing.slug}`}>{writing.title}</Link>
                   </h2>
                   <div className="spoken-word-excerpt">
-                    <p>{writing.content}</p>
+                    <p><WritingText text={writing.content} /></p>
                   </div>
-                  <Link className="quiet-link entry-open" href={`/post/${writing.slug}`}>
-                    Read piece
-                  </Link>
+                  <div className="entry-actions">
+                    <Link className="quiet-link entry-open" href={`/post/${writing.slug}`}>
+                      Read piece
+                    </Link>
+                    <ShareLink slug={writing.slug} title={writing.title} />
+                  </div>
                 </>
               ) : (
                 <>
@@ -247,11 +349,14 @@ export function JournalHome({
                     <Link href={`/post/${writing.slug}`}>{writing.title}</Link>
                   </h2>
                   <p className="writing-excerpt">
-                    {writing.content.split('\n\n')[0] || writing.content}
+                    <WritingText text={writing.content.split('\n\n')[0] || writing.content} />
                   </p>
-                  <Link className="quiet-link" href={`/post/${writing.slug}`}>
-                    Continue reading
-                  </Link>
+                  <div className="entry-actions">
+                    <Link className="quiet-link" href={`/post/${writing.slug}`}>
+                      Continue reading
+                    </Link>
+                    <ShareLink slug={writing.slug} title={writing.title} />
+                  </div>
                 </>
               )}
             </article>
@@ -309,10 +414,10 @@ export function PiecePage({
           <AudioPlayer src={writing.audio_url} />
         )}
         <div className={isSpokenWord ? 'full-spoken-word-content' : 'full-writing-content'}>
-          {writing.content}
+          <WritingText text={writing.content} />
         </div>
         <div className="piece-actions">
-          <ShareLink slug={writing.slug} />
+          <ShareLink slug={writing.slug} title={writing.title} />
         </div>
       </article>
       <nav className="piece-pagination" aria-label="Other writings">
@@ -340,16 +445,93 @@ export function PiecePage({
   )
 }
 
-function ShareLink({ slug }: { slug: string }) {
-  const [copied, setCopied] = useState(false)
+export function BookPage({
+  book,
+  loadError = false,
+}: {
+  book: BookListing | null
+  loadError?: boolean
+}) {
+  return (
+    <main className="reading-shell book-shell">
+      <Header />
+      {loadError ? (
+        <section className="not-found">
+          <span className="eyebrow-badge">Book</span>
+          <h1>The book page is resting for a moment.</h1>
+          <Link className="quiet-link" href="/">Return to the journal</Link>
+        </section>
+      ) : !book ? (
+        <section className="book-empty">
+          <span className="eyebrow-badge">Book</span>
+          <h1>A book will be here soon.</h1>
+          <p>Come back when there is something new to share.</p>
+        </section>
+      ) : (
+        <article className="book-page">
+          <span className="eyebrow-badge">Book</span>
+          <h1>{book.title}</h1>
+          <div className="book-details">
+            {book.cover_image_url === bookCoverRoute && (
+              <img
+                className="book-cover"
+                src={`${bookCoverRoute}?v=${encodeURIComponent(book.updated_at)}`}
+                alt={`Cover of ${book.title}`}
+                referrerPolicy="no-referrer"
+              />
+            )}
+            <div className="book-copy">
+              {book.description && <p>{book.description}</p>}
+              {book.purchase_url ? (
+                <a
+                  className="book-purchase-link"
+                  href={book.purchase_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Purchase the book
+                </a>
+              ) : (
+                <p className="book-purchase-note">Purchase details will be added soon.</p>
+              )}
+            </div>
+          </div>
+        </article>
+      )}
+      <footer className="site-footer">
+        <span>Kept with care.</span>
+        <Link href="/">Back to journal</Link>
+      </footer>
+    </main>
+  )
+}
+
+function ShareLink({ slug, title }: { slug: string; title: string }) {
+  const [feedback, setFeedback] = useState<'idle' | 'copied' | 'failed'>('idle')
   async function copy() {
-    await navigator.clipboard.writeText(`${window.location.origin}/post/${slug}`)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/post/${slug}`)
+      setFeedback('copied')
+    } catch {
+      setFeedback('failed')
+    }
+    window.setTimeout(() => setFeedback('idle'), 2000)
   }
   return (
-    <button type="button" className="copy-button" onClick={copy}>
-      {copied ? 'Link copied' : 'Copy link'}
+    <button
+      type="button"
+      className="copy-button"
+      aria-label={
+        feedback === 'copied'
+          ? `Link copied for ${title}`
+          : feedback === 'failed'
+            ? `Could not copy link for ${title}`
+            : `Copy link to ${title}`
+      }
+      aria-live="polite"
+      onClick={() => void copy()}
+    >
+      {feedback === 'copied' ? 'Link copied' : feedback === 'failed' ? 'Copy failed' : 'Copy link'}
     </button>
   )
 }
@@ -427,12 +609,12 @@ export function WriterDesk() {
     <main className="reading-shell">
       <Header />
       <section className="desk-message">
-        <span className="eyebrow-badge">Write</span>
-        <h1>A private room for writing.</h1>
+        <span className="eyebrow-badge">Admin dashboard</span>
+        <h1>Manage your journal.</h1>
         <p className="desk-note">
-          Compose new writings, schedule upcoming releases, or keep quiet drafts. Pieces scheduled for later automatically publish when their time arrives.
+          Manage your posts and book listing in one place.
         </p>
-        <PostingManager />
+        <AdminDashboard />
       </section>
       <footer className="site-footer">
         <div className="desk-footer-actions">
