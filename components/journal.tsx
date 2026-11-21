@@ -2,8 +2,17 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
-import { LinkedInImport } from '@/components/linkedin-import'
-import { categoryLabels, formatDate, sampleWritings, type Category, type Writing } from '@/lib/writings'
+import { PostingManager } from '@/components/posting-manager'
+import { clearAppCacheAndReload } from '@/components/pwa-register'
+import {
+  categoryLabels,
+  formatDate,
+  getAllWritings,
+  getLiveWritings,
+  sampleWritings,
+  type Category,
+  type Writing,
+} from '@/lib/writings'
 
 const filters: Array<{ label: string; value: Category | 'all' }> = [
   { label: 'All', value: 'all' },
@@ -150,8 +159,18 @@ function Meta({ writing }: { writing: Writing }) {
 
 export function JournalHome() {
   const [category, setCategory] = useState<Category | 'all'>('all')
-  const writings = sampleWritings.filter(
-    (item) => item.is_published && (category === 'all' || item.category === category)
+  const [allWritings, setAllWritings] = useState<Writing[]>(sampleWritings)
+
+  useEffect(() => {
+    setAllWritings(getLiveWritings())
+    const interval = setInterval(() => {
+      setAllWritings(getLiveWritings())
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const writings = allWritings.filter(
+    (item) => category === 'all' || item.category === category
   )
 
   return (
@@ -206,7 +225,14 @@ export function JournalHome() {
 }
 
 export function PiecePage({ slug }: { slug: string }) {
-  const writing = sampleWritings.find((item) => item.slug === slug)
+  const [allPieces, setAllPieces] = useState<Writing[]>(sampleWritings)
+
+  useEffect(() => {
+    setAllPieces(getAllWritings())
+  }, [])
+
+  const writing = allPieces.find((item) => item.slug === slug)
+
   if (!writing) {
     return (
       <main className="reading-shell">
@@ -220,9 +246,9 @@ export function PiecePage({ slug }: { slug: string }) {
     )
   }
 
-  const index = sampleWritings.findIndex((item) => item.id === writing.id)
-  const previous = sampleWritings[index - 1]
-  const next = sampleWritings[index + 1]
+  const index = allPieces.findIndex((item) => item.id === writing.id)
+  const previous = allPieces[index - 1]
+  const next = allPieces[index + 1]
   const isPoetry = writing.category === 'poem' || writing.category === 'spoken_word'
 
   return (
@@ -330,6 +356,25 @@ function AudioPlayer({ src }: { src: string }) {
   )
 }
 
+function ClearCacheButton() {
+  const [clearing, setClearing] = useState(false)
+  async function handleClear() {
+    setClearing(true)
+    await clearAppCacheAndReload()
+  }
+  return (
+    <button
+      type="button"
+      className="text-button desk-cache-button"
+      onClick={handleClear}
+      disabled={clearing}
+      title="Purge cached app files and download the latest updates"
+    >
+      {clearing ? 'Updating app...' : 'Clear cache and update'}
+    </button>
+  )
+}
+
 export function WriterDesk() {
   return (
     <main className="reading-shell">
@@ -337,14 +382,13 @@ export function WriterDesk() {
       <section className="desk-message">
         <span className="eyebrow-badge">Writer&apos;s desk</span>
         <h1>A private room for writing.</h1>
-        <LinkedInImport />
         <p className="desk-note">
-          Writing and publishing are paused for now. Supabase is not connected, so imported posts can be previewed but not saved.
+          Compose new writings, schedule upcoming releases, or keep quiet drafts. Pieces scheduled for later automatically publish when their time arrives.
         </p>
-        <Link className="quiet-link" href="/">Back to journal</Link>
+        <PostingManager />
       </section>
       <footer className="site-footer">
-        <span>Kept with care.</span>
+        <ClearCacheButton />
         <Link href="/">Back to journal</Link>
       </footer>
     </main>

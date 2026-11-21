@@ -1,0 +1,30 @@
+import type { MetadataRoute } from 'next'
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: 'BeautifulMess | A writer’s journal',
+    short_name: 'BeautifulMess',
+    description: 'A quiet collection of poems, prose, spoken word, and notes from the day.',
+    start_url: '/',
+    display: 'standalone',
+    background_color: '#FAF5EB',
+    theme_color: '#1A1410',
+    icons: [
+      {
+        src: '/android-chrome-192x192.png',
+        sizes: '192x192',
+        type: 'image/png',
+      },
+      {
+        src: '/android-chrome-512x512.png',
+        sizes: '512x512',
+        type: 'image/png',
+      },
+      {
+        src: '/apple-touch-icon.png',
+        sizes: '180x180',
+        type: 'image/png',
+      },
+    ],
+  }
+}
