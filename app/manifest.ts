@@ -4,8 +4,10 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'BeautifulMess | A writer’s journal',
     short_name: 'BeautifulMess',
-    description: 'A quiet collection of poems, prose, spoken word, and notes from the day.',
+    description: 'A journal of writing and spoken-word pieces.',
+    id: '/',
     start_url: '/',
+    scope: '/',
     display: 'standalone',
     background_color: '#FAF5EB',
     theme_color: '#1A1410',

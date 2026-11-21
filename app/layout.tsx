@@ -5,7 +5,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'BeautifulMess | A writer’s journal',
-  description: 'A small collection of poems, prose, spoken word, and notes from the day.',
+  description: 'A journal of writing and spoken-word pieces.',
   manifest: '/manifest.webmanifest',
   icons: {
     icon: [

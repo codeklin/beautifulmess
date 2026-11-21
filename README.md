@@ -1,9 +1,9 @@
 # BeautifulMess
 
-A journal in progress. Here you will find notes, poems, prose, spoken-word pieces, and other things worth keeping.
+A journal of writing, LinkedIn pieces, and spoken-word recordings.
 
-## Find a piece
+## Read and listen
 
-Browse everything together, or choose a kind of writing such as LinkedIn, poems, prose, or spoken word. Open any title to read it on its own. Some pieces are meant to be read slowly. Some are meant to be heard.
+Browse all writing or choose LinkedIn or spoken-word pieces. Open a title to read it on its own. Some pieces are meant to be heard.
 
 Kept with care.

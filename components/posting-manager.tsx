@@ -5,14 +5,111 @@ import { LinkedInImport } from '@/components/linkedin-import'
 import {
   categoryLabels,
   formatDateTime,
-  getAllWritings,
-  getStoredWritings,
   isWritingLive,
-  saveStoredWritings,
   type Category,
   type Writing,
   type WritingStatus,
 } from '@/lib/writings'
+import type { WritingInput } from '@/lib/writing-store'
+
+type AdminApiResponse = {
+  writings?: Writing[]
+  message?: string
+}
+
+const legacyStorageKey = 'beautifulmess_writings'
+const writingCategories: Category[] = ['linkedin', 'poem', 'prose', 'spoken_word']
+const writingStatuses: WritingStatus[] = ['draft', 'scheduled', 'published']
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isWritingCategory(value: unknown): value is Category {
+  return typeof value === 'string' && writingCategories.some((category) => category === value)
+}
+
+function isWritingStatus(value: unknown): value is WritingStatus {
+  return typeof value === 'string' && writingStatuses.some((status) => status === value)
+}
+
+function readLegacyWritings(): WritingInput[] {
+  const raw = window.localStorage.getItem(legacyStorageKey)
+  if (!raw) return []
+
+  const parsed: unknown = JSON.parse(raw)
+  if (!Array.isArray(parsed)) {
+    throw new Error('The saved browser writings could not be read.')
+  }
+
+  return parsed.map((value): WritingInput => {
+    if (!isRecord(value)) throw new Error('A saved browser writing has invalid details.')
+    const { title, slug, category, content, status, is_published, scheduled_for, created_at } = value
+    if (
+      typeof title !== 'string' ||
+      typeof slug !== 'string' ||
+      !isWritingCategory(category) ||
+      typeof content !== 'string' ||
+      (status !== undefined && !isWritingStatus(status)) ||
+      (is_published !== undefined && typeof is_published !== 'boolean') ||
+      (scheduled_for !== undefined && scheduled_for !== null && typeof scheduled_for !== 'string') ||
+      typeof created_at !== 'string'
+    ) {
+      throw new Error('A saved browser writing has invalid details.')
+    }
+
+    const normalizedStatus: WritingStatus =
+      status === 'draft' || status === 'scheduled' ? status : 'published'
+    return {
+      title,
+      slug,
+      category,
+      content,
+      audio_url: typeof value.audio_url === 'string' ? value.audio_url : null,
+      is_published: normalizedStatus !== 'draft',
+      status: normalizedStatus,
+      scheduled_for: typeof scheduled_for === 'string' ? scheduled_for : null,
+      created_at,
+    }
+  })
+}
+
+async function requestAdminWritings(
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  body?: unknown,
+): Promise<AdminApiResponse> {
+  const response = await fetch('/api/admin/writings', {
+    method,
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: 'no-store',
+  })
+
+  let result: unknown
+  try {
+    result = await response.json()
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error
+    throw new Error('The writing service returned an unreadable response.')
+  }
+
+  if (!response.ok) {
+    const message = typeof result === 'object' && result !== null && 'message' in result
+      && typeof result.message === 'string'
+      ? result.message
+      : 'The writing could not be saved. Please try again.'
+    throw new Error(message)
+  }
+
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) {
+    throw new Error('The writing service returned an invalid response.')
+  }
+  return result as AdminApiResponse
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback
+}
 
 function makeSlug(title: string, suffix = crypto.randomUUID().slice(0, 8)) {
   const base = title
@@ -35,11 +132,17 @@ function getDefaultScheduleTime(): string {
 export function PostingManager() {
   const [activeTab, setActiveTab] = useState<'compose' | 'ledger' | 'import'>('compose')
   const [writings, setWritings] = useState<Writing[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [legacyCount, setLegacyCount] = useState(0)
+  const [legacyError, setLegacyError] = useState('')
+  const [migratingLegacy, setMigratingLegacy] = useState(false)
 
   // Composer fields
   const [editingId, setEditingId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
-  const [category, setCategory] = useState<Category>('poem')
+  const [isSpokenWord, setIsSpokenWord] = useState(false)
   const [content, setContent] = useState('')
   const [audioUrl, setAudioUrl] = useState('')
   const [publishMode, setPublishMode] = useState<'now' | 'schedule' | 'draft'>('schedule')
@@ -53,24 +156,83 @@ export function PostingManager() {
   const scheduleInputId = useId()
 
   useEffect(() => {
-    setWritings(getAllWritings())
+    let active = true
+    requestAdminWritings('GET')
+      .then((result) => {
+        if (!Array.isArray(result.writings)) {
+          throw new Error('The writing service returned an invalid list.')
+        }
+        if (active) {
+          setWritings(result.writings)
+          setLoadError('')
+        }
+      })
+      .catch((error: unknown) => {
+        if (active) setLoadError(getErrorMessage(error, 'Unable to load your writings.'))
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
   }, [])
 
-  function refreshWritings() {
-    setWritings(getAllWritings())
+  useEffect(() => {
+    try {
+      setLegacyCount(readLegacyWritings().length)
+    } catch (error) {
+      setLegacyError(getErrorMessage(error, 'Saved browser writings could not be read.'))
+    }
+  }, [])
+
+  async function refreshWritings() {
+    const result = await requestAdminWritings('GET')
+    if (!Array.isArray(result.writings)) {
+      throw new Error('The writing service returned an invalid list.')
+    }
+    setWritings(result.writings)
+    setLoadError('')
+  }
+
+  async function migrateLegacyWritings() {
+    setMigratingLegacy(true)
+    setLegacyError('')
+    let saved = false
+    try {
+      const legacyWritings = readLegacyWritings()
+      if (!legacyWritings.length) {
+        setLegacyCount(0)
+        return
+      }
+      await requestAdminWritings('POST', legacyWritings)
+      saved = true
+      window.localStorage.removeItem(legacyStorageKey)
+      setLegacyCount(0)
+      await refreshWritings()
+      setMessage(`${legacyWritings.length} browser-saved ${legacyWritings.length === 1 ? 'writing was' : 'writings were'} moved to your journal.`)
+    } catch (error) {
+      setLegacyError(
+        saved
+          ? 'Your writings were saved, but the list could not refresh. Reload this page to see them.'
+          : getErrorMessage(error, 'Browser-saved writings could not be moved.'),
+      )
+    } finally {
+      setMigratingLegacy(false)
+    }
   }
 
   function resetForm() {
     setEditingId(null)
     setTitle('')
-    setCategory('poem')
+    setIsSpokenWord(false)
     setContent('')
     setAudioUrl('')
     setPublishMode('schedule')
     setScheduledFor(getDefaultScheduleTime())
   }
 
-  function handleSave(event: React.FormEvent) {
+  async function handleSave(event: React.FormEvent) {
     event.preventDefault()
     setMessage('')
 
@@ -107,72 +269,50 @@ export function PostingManager() {
       if (parsedTime <= Date.now()) {
         status = 'published'
         isPublished = true
-        scheduleIso = new Date(parsedTime).toISOString()
+        scheduleIso = null
       } else {
         status = 'scheduled'
-        isPublished = false
+        isPublished = true
         scheduleIso = new Date(parsedTime).toISOString()
       }
     }
 
-    const stored = getStoredWritings()
-    const nowIso = new Date().toISOString()
-
-    if (editingId) {
-      const existing = stored.find((item) => item.id === editingId)
-      const updatedList = stored.map((item) => {
-        if (item.id !== editingId) return item
-        return {
-          ...item,
-          title: cleanTitle,
-          category,
-          content: cleanContent,
-          audio_url: category === 'spoken_word' ? audioUrl.trim() || null : null,
-          status,
-          is_published: isPublished,
-          scheduled_for: scheduleIso,
-        }
-      })
-      saveStoredWritings(updatedList)
-      setMessage(
-        status === 'scheduled'
-          ? `Updated and scheduled for ${formatDateTime(scheduleIso || nowIso)}.`
-          : status === 'draft'
-          ? 'Draft updated in your private desk.'
-          : 'Piece updated and published to your journal.'
-      )
-    } else {
-      const id = crypto.randomUUID()
-      const newPiece: Writing = {
-        id,
-        title: cleanTitle,
-        slug: makeSlug(cleanTitle, id.slice(0, 8)),
-        category,
-        content: cleanContent,
-        audio_url: category === 'spoken_word' ? audioUrl.trim() || null : null,
-        is_published: isPublished,
-        status,
-        scheduled_for: scheduleIso,
-        created_at: nowIso,
-      }
-      saveStoredWritings([newPiece, ...stored])
-      setMessage(
-        status === 'scheduled'
-          ? `Scheduled to appear in your journal on ${formatDateTime(scheduleIso || nowIso)}.`
-          : status === 'draft'
-          ? 'Saved as a private draft in your desk.'
-          : 'Published live to your journal.'
-      )
+    const existing = editingId ? writings.find((item) => item.id === editingId) : undefined
+    const category: Category = isSpokenWord ? 'spoken_word' : 'prose'
+    const payload: WritingInput = {
+      title: cleanTitle,
+      slug: existing?.slug ?? makeSlug(cleanTitle),
+      category,
+      content: cleanContent,
+      audio_url: isSpokenWord ? audioUrl.trim() || null : null,
+      is_published: isPublished,
+      status,
+      scheduled_for: scheduleIso,
     }
 
-    resetForm()
-    refreshWritings()
+    setSaving(true)
+    try {
+      await requestAdminWritings(editingId ? 'PATCH' : 'POST', editingId ? { id: editingId, ...payload } : payload)
+      await refreshWritings()
+      resetForm()
+      setMessage(
+        status === 'scheduled'
+          ? `${editingId ? 'Updated and scheduled' : 'Scheduled to appear'} for ${formatDateTime(scheduleIso || new Date().toISOString())}.`
+          : status === 'draft'
+          ? editingId ? 'Draft updated in your private desk.' : 'Saved as a private draft in your desk.'
+          : editingId ? 'Piece updated and published to your journal.' : 'Published live to your journal.'
+      )
+    } catch (error) {
+      setMessage(getErrorMessage(error, 'The writing could not be saved. Please try again.'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   function handleEdit(item: Writing) {
     setEditingId(item.id)
     setTitle(item.title)
-    setCategory(item.category)
+    setIsSpokenWord(item.category === 'spoken_word')
     setContent(item.content)
     setAudioUrl(item.audio_url || '')
     if (item.status === 'draft') {
@@ -192,28 +332,36 @@ export function PostingManager() {
     setMessage('')
   }
 
-  function handlePublishNow(id: string) {
-    const stored = getStoredWritings()
-    const updated = stored.map((item) => {
-      if (item.id !== id) return item
-      return {
-        ...item,
-        status: 'published' as const,
+  async function handlePublishNow(item: Writing) {
+    setMessage('')
+    try {
+      await requestAdminWritings('PATCH', {
+        id: item.id,
+        title: item.title,
+        slug: item.slug,
+        category: item.category,
+        content: item.content,
+        audio_url: item.audio_url ?? null,
+        status: 'published',
         is_published: true,
         scheduled_for: null,
-      }
-    })
-    saveStoredWritings(updated)
-    refreshWritings()
-    setMessage('Piece has been published to your journal.')
+      })
+      await refreshWritings()
+      setMessage('Piece has been published to your journal.')
+    } catch (error) {
+      setMessage(getErrorMessage(error, 'The writing could not be published. Please try again.'))
+    }
   }
 
-  function handleDelete(id: string) {
-    const stored = getStoredWritings()
-    const updated = stored.filter((item) => item.id !== id)
-    saveStoredWritings(updated)
-    refreshWritings()
-    setMessage('Piece removed from your desk.')
+  async function handleDelete(id: string) {
+    setMessage('')
+    try {
+      await requestAdminWritings('DELETE', { id })
+      await refreshWritings()
+      setMessage('Piece removed from your desk.')
+    } catch (error) {
+      setMessage(getErrorMessage(error, 'The writing could not be removed. Please try again.'))
+    }
   }
 
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0
@@ -281,11 +429,20 @@ export function PostingManager() {
         </button>
       </div>
 
-      {message && (
-        <div className="manager-feedback" role="status">
-          {message}
+      {(message || loadError) && (
+        <div className="manager-feedback" role={loadError ? 'alert' : 'status'}>
+          {message || loadError}
         </div>
       )}
+      {legacyCount > 0 && (
+        <div className="manager-feedback" role="status">
+          <p>{legacyCount} browser-saved {legacyCount === 1 ? 'writing is' : 'writings are'} not in your shared journal yet.</p>
+          <button type="button" className="ledger-action-btn" disabled={migratingLegacy} onClick={() => void migrateLegacyWritings()}>
+            {migratingLegacy ? 'Moving writings...' : 'Move browser writings to journal'}
+          </button>
+        </div>
+      )}
+      {legacyError && <p className="manager-feedback" role="alert">{legacyError}</p>}
 
       {/* Tab 1: Compose / Edit Form */}
       {activeTab === 'compose' && (
@@ -306,24 +463,17 @@ export function PostingManager() {
           </div>
 
           <div className="form-row">
-            <span className="field-label">Category</span>
-            <div className="category-picker" role="radiogroup" aria-label="Category">
-              {(['poem', 'prose', 'spoken_word', 'linkedin'] as Category[]).map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  role="radio"
-                  aria-checked={category === cat}
-                  className={`category-chip ${category === cat ? 'selected' : ''}`}
-                  onClick={() => setCategory(cat)}
-                >
-                  {categoryLabels[cat]}
-                </button>
-              ))}
-            </div>
+            <label className="spoken-word-option">
+              <input
+                type="checkbox"
+                checked={isSpokenWord}
+                onChange={(event) => setIsSpokenWord(event.target.checked)}
+              />
+              <span>Spoken word</span>
+            </label>
           </div>
 
-          {category === 'spoken_word' && (
+          {isSpokenWord && (
             <div className="form-row">
               <label className="field-label" htmlFor={audioInputId}>
                 Audio recording URL (optional)
@@ -342,7 +492,7 @@ export function PostingManager() {
           <div className="form-row">
             <div className="content-label-bar">
               <label className="field-label" htmlFor={contentInputId}>
-                Words & Stanzas
+                Your writing
               </label>
               {wordCount > 0 && (
                 <span className="words-counter">
@@ -352,12 +502,12 @@ export function PostingManager() {
             </div>
             <textarea
               id={contentInputId}
-              className={`composer-textarea ${category === 'poem' || category === 'spoken_word' ? 'textarea-poem' : ''}`}
+              className={`composer-textarea ${isSpokenWord ? 'textarea-spoken-word' : ''}`}
               rows={10}
               placeholder={
-                category === 'poem' || category === 'spoken_word'
-                  ? 'Write your lines here...\nLeave a space between stanzas.'
-                  : 'Let the thoughts take shape here without rushing...'
+                isSpokenWord
+                  ? 'Write your spoken-word piece here...'
+                  : 'Write your words here...'
               }
               value={content}
               onChange={(e) => setContent(e.target.value)}
@@ -425,8 +575,10 @@ export function PostingManager() {
           </div>
 
           <div className="composer-actions">
-            <button type="submit" className="composer-submit-btn">
-              {publishMode === 'schedule'
+            <button type="submit" className="composer-submit-btn" disabled={saving}>
+              {saving
+                ? 'Saving...'
+                : publishMode === 'schedule'
                 ? editingId
                   ? 'Update schedule'
                   : 'Schedule piece'
@@ -482,9 +634,13 @@ export function PostingManager() {
           </div>
 
           <div className="ledger-list">
-            {filteredLedger.length === 0 ? (
+            {loading ? (
               <div className="ledger-empty">
-                <p>No pieces found in this category.</p>
+                <p>Loading your writings...</p>
+              </div>
+            ) : filteredLedger.length === 0 ? (
+              <div className="ledger-empty">
+                <p>No writings in this view.</p>
               </div>
             ) : (
               filteredLedger.map((item) => {
@@ -496,7 +652,9 @@ export function PostingManager() {
                   <div key={item.id} className="ledger-card">
                     <div className="ledger-card-header">
                       <div className="ledger-card-badges">
-                        <span className="entry-badge">{categoryLabels[item.category]}</span>
+                        {categoryLabels[item.category] && (
+                          <span className="entry-badge">{categoryLabels[item.category]}</span>
+                        )}
                         {isScheduled && item.scheduled_for && (
                           <span className="status-pill status-scheduled">
                             Scheduled: {formatDateTime(item.scheduled_for)}
@@ -519,7 +677,7 @@ export function PostingManager() {
                         <button
                           type="button"
                           className="ledger-action-btn primary"
-                          onClick={() => handlePublishNow(item.id)}
+                          onClick={() => void handlePublishNow(item)}
                         >
                           Post now
                         </button>
@@ -534,7 +692,7 @@ export function PostingManager() {
                       <button
                         type="button"
                         className="ledger-action-btn delete"
-                        onClick={() => handleDelete(item.id)}
+                        onClick={() => void handleDelete(item.id)}
                       >
                         Remove
                       </button>
@@ -547,12 +705,7 @@ export function PostingManager() {
         </div>
       )}
 
-      {/* Tab 3: LinkedIn CSV Importer */}
-      {activeTab === 'import' && (
-        <div className="import-wrapper">
-          <LinkedInImport />
-        </div>
-      )}
+      {activeTab === 'import' && <LinkedInImport onImported={refreshWritings} />}
     </div>
   )
 }

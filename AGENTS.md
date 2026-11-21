@@ -9,10 +9,10 @@
 
 ## Existing experience
 
-- `/` is the journal index with filters for LinkedIn, poems, prose, and spoken word.
+- `/` is the journal index with filters for LinkedIn and spoken-word pieces.
 - `/post/[slug]` displays a writing and links to neighboring pieces.
-- `/write` is the private writer's desk. LinkedIn CSV parsing currently provides a browser-only preview; it does not save entries to a database.
-- Keep category values aligned with `lib/writings.ts`: `linkedin`, `poem`, `prose`, and `spoken_word`.
+- `/write` is the password-protected writing area for composing, scheduling, and keeping drafts. Writing is currently stored in browser storage.
+- Preserve legacy category values in stored data; new regular writing uses `prose`, and spoken-word pieces use `spoken_word`.
 
 ## Changes and validation
 

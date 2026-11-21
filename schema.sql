@@ -16,21 +16,42 @@ create table if not exists public.writings (
 alter table public.writings enable row level security;
 
 grant select on public.writings to anon, authenticated;
+revoke insert, update, delete on public.writings from anon;
 grant insert, update, delete on public.writings to authenticated;
 
+drop policy if exists "Anyone can read published writings" on public.writings;
+drop policy if exists "Authenticated users can insert writings" on public.writings;
+drop policy if exists "Authenticated users can update writings" on public.writings;
+drop policy if exists "Authenticated users can delete writings" on public.writings;
+drop policy if exists "Only owner can insert writings" on public.writings;
+drop policy if exists "Only owner can update writings" on public.writings;
+drop policy if exists "Only owner can delete writings" on public.writings;
+
+-- Keep this owner address aligned with ADMIN_EMAIL in the app environment.
 create policy "Anyone can read published writings" on public.writings
   for select to anon, authenticated using (
-    is_published = true and (scheduled_for is null or scheduled_for <= now())
+    (
+      is_published = true
+      and (
+        (status = 'published' and (scheduled_for is null or scheduled_for <= now()))
+        or (status = 'scheduled' and scheduled_for <= now())
+      )
+    )
+    or (auth.jwt() ->> 'email') = 'clickcom007@yahoo.com'
   );
 
-create policy "Authenticated users can insert writings" on public.writings
-  for insert to authenticated with check (true);
+create policy "Only owner can insert writings" on public.writings
+  for insert to authenticated
+  with check ((auth.jwt() ->> 'email') = 'clickcom007@yahoo.com');
 
-create policy "Authenticated users can update writings" on public.writings
-  for update to authenticated using (true) with check (true);
+create policy "Only owner can update writings" on public.writings
+  for update to authenticated
+  using ((auth.jwt() ->> 'email') = 'clickcom007@yahoo.com')
+  with check ((auth.jwt() ->> 'email') = 'clickcom007@yahoo.com');
 
-create policy "Authenticated users can delete writings" on public.writings
-  for delete to authenticated using (true);
+create policy "Only owner can delete writings" on public.writings
+  for delete to authenticated
+  using ((auth.jwt() ->> 'email') = 'clickcom007@yahoo.com');
 
 -- Extensions for automated background jobs and network requests
 create extension if not exists pg_cron;

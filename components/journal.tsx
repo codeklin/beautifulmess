@@ -1,15 +1,13 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { PostingManager } from '@/components/posting-manager'
-import { clearAppCacheAndReload } from '@/components/pwa-register'
+import { PwaInstallButton, clearAppCacheAndReload } from '@/components/pwa-register'
 import {
   categoryLabels,
   formatDate,
-  getAllWritings,
-  getLiveWritings,
-  sampleWritings,
   type Category,
   type Writing,
 } from '@/lib/writings'
@@ -17,8 +15,6 @@ import {
 const filters: Array<{ label: string; value: Category | 'all' }> = [
   { label: 'All', value: 'all' },
   { label: 'LinkedIn', value: 'linkedin' },
-  { label: 'Poems', value: 'poem' },
-  { label: 'Prose', value: 'prose' },
   { label: 'Spoken Word', value: 'spoken_word' },
 ]
 
@@ -43,7 +39,17 @@ function ThemeToggle() {
   )
 }
 
-function Header({ active, onSelect }: { active?: string; onSelect?: (value: Category | 'all') => void }) {
+function Header({
+  active,
+  onSelect,
+  showBackLink = true,
+  showAdminLink = false,
+}: {
+  active?: string
+  onSelect?: (value: Category | 'all') => void
+  showBackLink?: boolean
+  showAdminLink?: boolean
+}) {
   const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
@@ -76,9 +82,10 @@ function Header({ active, onSelect }: { active?: string; onSelect?: (value: Cate
             </button>
           ))}
         </nav>
-      ) : (
+      ) : showBackLink && (
         <Link href="/" className="back-link">Back to journal</Link>
       )}
+      {showAdminLink && <Link href="/write" className="admin-header-link">Admin</Link>}
       <ThemeToggle />
       <span className="mobile-theme-toggle">
         <ThemeToggle />
@@ -134,14 +141,16 @@ function Header({ active, onSelect }: { active?: string; onSelect?: (value: Cate
                 </button>
               ))}
             </div>
-          ) : (
+          ) : showBackLink && (
             <Link className="quiet-link" href="/" onClick={() => setMenuOpen(false)}>
               Back to journal
             </Link>
           )}
-          <Link className="quiet-link menu-desk-link" href="/write" onClick={() => setMenuOpen(false)}>
-            Writer&apos;s desk
-          </Link>
+          {showAdminLink && (
+            <Link className="quiet-link mobile-admin-link" href="/write" onClick={() => setMenuOpen(false)}>
+              Admin
+            </Link>
+          )}
         </nav>
       )}
     </header>
@@ -151,49 +160,82 @@ function Header({ active, onSelect }: { active?: string; onSelect?: (value: Cate
 function Meta({ writing }: { writing: Writing }) {
   return (
     <div className="entry-meta">
-      <span className="entry-badge">{categoryLabels[writing.category]}</span>
+      {categoryLabels[writing.category] && (
+        <span className="entry-badge">{categoryLabels[writing.category]}</span>
+      )}
       <time className="meta-time" dateTime={writing.created_at}>{formatDate(writing.created_at)}</time>
     </div>
   )
 }
 
-export function JournalHome() {
+export function JournalHome({
+  writings: allWritings,
+  loadError = false,
+  showAdminLink = false,
+}: {
+  writings: Writing[]
+  loadError?: boolean
+  showAdminLink?: boolean
+}) {
   const [category, setCategory] = useState<Category | 'all'>('all')
-  const [allWritings, setAllWritings] = useState<Writing[]>(sampleWritings)
+  const [query, setQuery] = useState('')
+  const router = useRouter()
 
   useEffect(() => {
-    setAllWritings(getLiveWritings())
-    const interval = setInterval(() => {
-      setAllWritings(getLiveWritings())
-    }, 30000)
+    const interval = window.setInterval(() => router.refresh(), 30000)
     return () => clearInterval(interval)
-  }, [])
+  }, [router])
 
-  const writings = allWritings.filter(
-    (item) => category === 'all' || item.category === category
-  )
+  const normalizedQuery = query.trim().toLowerCase()
+  const writings = allWritings.filter((item) => {
+    const matchesCategory = category === 'all' || item.category === category
+    const matchesSearch = !normalizedQuery
+      || `${item.title}\n${item.content}`.toLowerCase().includes(normalizedQuery)
+    return matchesCategory && matchesSearch
+  })
 
   return (
     <main className="reading-shell">
-      <Header active={category} onSelect={setCategory} />
+      <Header active={category} onSelect={setCategory} showBackLink={false} showAdminLink={showAdminLink} />
       <section className="journal-intro">
-        <span className="eyebrow-badge">Notes, poems, and other things kept</span>
+        <span className="eyebrow-badge">Writing, kept here</span>
         <h1>A journal in progress.</h1>
         <p className="intro-copy">Words gathered along the way, written down and left here.</p>
       </section>
-      <section className="entries" aria-label="Journal entries">
+      <section className="journal-search" role="search">
+        <label className="field-label" htmlFor="journal-search">Search writings</label>
+        <input
+          id="journal-search"
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search titles and words"
+        />
+      </section>
+      <section className="entries" aria-label="Journal entries" aria-live="polite">
+        {loadError ? (
+          <p className="empty-journal">The journal is unavailable right now. Please come back soon.</p>
+        ) : writings.length === 0 ? (
+          <p className="empty-journal">
+            {normalizedQuery
+              ? 'No writings match your search.'
+              : category !== 'all'
+                ? 'There are no writings in this filter yet.'
+                : 'There is nothing here just yet.'}
+          </p>
+        ) : null}
         {writings.map((writing) => {
-          const isPoetry = writing.category === 'poem' || writing.category === 'spoken_word'
+          const isSpokenWord = writing.category === 'spoken_word'
           return (
-            <article key={writing.id} className={`entry ${isPoetry ? 'entry-poem' : 'entry-prose'}`}>
+            <article key={writing.id} className={`entry ${isSpokenWord ? 'entry-spoken-word' : 'entry-writing'}`}>
               <Meta writing={writing} />
-              {isPoetry ? (
+              {isSpokenWord ? (
                 <>
-                  <h2 className="poem-title">
+                  <h2 className="spoken-word-title">
                     <Link href={`/post/${writing.slug}`}>{writing.title}</Link>
                   </h2>
-                  <div className="piece-stanza">
-                    <p className="piece-text">{writing.content}</p>
+                  <div className="spoken-word-excerpt">
+                    <p>{writing.content}</p>
                   </div>
                   <Link className="quiet-link entry-open" href={`/post/${writing.slug}`}>
                     Read piece
@@ -204,7 +246,7 @@ export function JournalHome() {
                   <h2 className="entry-title">
                     <Link href={`/post/${writing.slug}`}>{writing.title}</Link>
                   </h2>
-                  <p className="prose-excerpt">
+                  <p className="writing-excerpt">
                     {writing.content.split('\n\n')[0] || writing.content}
                   </p>
                   <Link className="quiet-link" href={`/post/${writing.slug}`}>
@@ -218,28 +260,34 @@ export function JournalHome() {
       </section>
       <footer className="site-footer">
         <span>Kept with care.</span>
-        <Link href="/write">Writer&apos;s desk</Link>
+        <div className="site-footer-links">
+          <PwaInstallButton />
+        </div>
       </footer>
     </main>
   )
 }
 
-export function PiecePage({ slug }: { slug: string }) {
-  const [allPieces, setAllPieces] = useState<Writing[]>(sampleWritings)
-
-  useEffect(() => {
-    setAllPieces(getAllWritings())
-  }, [])
-
+export function PiecePage({
+  slug,
+  writings: allPieces,
+  loadError = false,
+  showAdminLink = false,
+}: {
+  slug: string
+  writings: Writing[]
+  loadError?: boolean
+  showAdminLink?: boolean
+}) {
   const writing = allPieces.find((item) => item.slug === slug)
 
-  if (!writing) {
+  if (loadError || !writing) {
     return (
       <main className="reading-shell">
-        <Header />
+        <Header showAdminLink={showAdminLink} />
         <section className="not-found">
-          <span className="eyebrow-badge">Not found</span>
-          <h1>This page is not here.</h1>
+          <span className="eyebrow-badge">{loadError ? 'Unavailable' : 'Not found'}</span>
+          <h1>{loadError ? 'The journal is resting for a moment.' : 'This page is not here.'}</h1>
           <Link className="quiet-link" href="/">Return to the journal</Link>
         </section>
       </main>
@@ -249,18 +297,18 @@ export function PiecePage({ slug }: { slug: string }) {
   const index = allPieces.findIndex((item) => item.id === writing.id)
   const previous = allPieces[index - 1]
   const next = allPieces[index + 1]
-  const isPoetry = writing.category === 'poem' || writing.category === 'spoken_word'
+  const isSpokenWord = writing.category === 'spoken_word'
 
   return (
     <main className="reading-shell piece-shell">
-      <Header />
+      <Header showAdminLink={showAdminLink} />
       <article className="full-piece">
         <Meta writing={writing} />
         <h1 className="piece-heading">{writing.title}</h1>
         {writing.category === 'spoken_word' && writing.audio_url && (
           <AudioPlayer src={writing.audio_url} />
         )}
-        <div className={isPoetry ? 'full-poem-content' : 'full-prose-content'}>
+        <div className={isSpokenWord ? 'full-spoken-word-content' : 'full-writing-content'}>
           {writing.content}
         </div>
         <div className="piece-actions">
@@ -287,7 +335,6 @@ export function PiecePage({ slug }: { slug: string }) {
       </nav>
       <footer className="site-footer">
         <span>Kept with care.</span>
-        <Link href="/write">Writer&apos;s desk</Link>
       </footer>
     </main>
   )
@@ -380,7 +427,7 @@ export function WriterDesk() {
     <main className="reading-shell">
       <Header />
       <section className="desk-message">
-        <span className="eyebrow-badge">Writer&apos;s desk</span>
+        <span className="eyebrow-badge">Write</span>
         <h1>A private room for writing.</h1>
         <p className="desk-note">
           Compose new writings, schedule upcoming releases, or keep quiet drafts. Pieces scheduled for later automatically publish when their time arrives.
@@ -388,7 +435,12 @@ export function WriterDesk() {
         <PostingManager />
       </section>
       <footer className="site-footer">
-        <ClearCacheButton />
+        <div className="desk-footer-actions">
+          <ClearCacheButton />
+          <form action="/api/admin/logout" method="post">
+            <button type="submit" className="text-button">Sign out</button>
+          </form>
+        </div>
         <Link href="/">Back to journal</Link>
       </footer>
     </main>

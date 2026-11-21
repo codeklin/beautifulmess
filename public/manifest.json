@@ -1,7 +1,7 @@
 {
   "name": "BeautifulMess | A writer’s journal",
   "short_name": "BeautifulMess",
-  "description": "A quiet collection of poems, prose, spoken word, and notes from the day.",
+  "description": "A journal of writing and spoken-word pieces.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#FAF5EB",

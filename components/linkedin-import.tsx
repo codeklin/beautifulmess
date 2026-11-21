@@ -70,10 +70,12 @@ function toIsoDate(value: string) {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
 }
 
-export function LinkedInImport() {
+export function LinkedInImport({ onImported }: { onImported: () => Promise<void> }) {
   const [open, setOpen] = useState(false)
   const [posts, setPosts] = useState<PreviewPost[]>([])
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
   const [dateFallbacks, setDateFallbacks] = useState(0)
 
   async function readFile(event: ChangeEvent<HTMLInputElement>) {
@@ -81,6 +83,7 @@ export function LinkedInImport() {
     const file = input.files?.[0]
     if (!file) return
     setError('')
+    setMessage('')
     setPosts([])
     setDateFallbacks(0)
     if (file.size > 25 * 1024 * 1024) {
@@ -129,13 +132,70 @@ export function LinkedInImport() {
     }))
   }
 
+  async function saveSelectedPosts() {
+    const selected = posts.filter((post) => post.selected)
+    if (!selected.length) {
+      setError('Choose at least one post to save.')
+      return
+    }
+
+    setSaving(true)
+    setError('')
+    setMessage('')
+    let saved = false
+    try {
+      const response = await fetch('/api/admin/writings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify(selected.map((post) => ({
+          id: post.id,
+          title: post.title.trim(),
+          slug: post.slug,
+          category: post.category,
+          content: post.content,
+          audio_url: null,
+          is_published: true,
+          status: 'published',
+          scheduled_for: null,
+          created_at: post.created_at,
+        }))),
+      })
+      let result: unknown
+      try {
+        result = await response.json()
+      } catch (caught) {
+        if (!(caught instanceof SyntaxError)) throw caught
+        throw new Error('The writing service returned an unreadable response.')
+      }
+      if (!response.ok) {
+        const detail = typeof result === 'object' && result !== null && 'message' in result
+          && typeof result.message === 'string'
+          ? result.message
+          : 'The posts could not be saved. Please try again.'
+        throw new Error(detail)
+      }
+
+      saved = true
+      await onImported()
+      setPosts([])
+      setMessage(`${selected.length} ${selected.length === 1 ? 'post' : 'posts'} saved to your journal.`)
+    } catch (caught) {
+      const detail = caught instanceof Error ? caught.message : 'Please try again.'
+      setError(saved ? `The posts were saved, but the list could not refresh. ${detail}` : detail)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return <section className="linkedin-import">
     <button className="import-toggle" type="button" aria-expanded={open} aria-controls="linkedin-import-panel" onClick={() => setOpen((current) => !current)}>{open ? 'Close LinkedIn CSV import' : 'Import LinkedIn CSV'}</button>
     {open && <div className="import-panel" id="linkedin-import-panel">
-      <p className="import-intro">Choose the Shares.csv file from your LinkedIn export. Posts are read in this browser first.</p>
+      <p className="import-intro">Choose the Shares.csv file from your LinkedIn export. Review each post before saving it to your journal.</p>
       <label className="file-label" htmlFor="shares-csv">Shares.csv file</label>
       <input id="shares-csv" className="file-input" type="file" accept=".csv,text/csv" onChange={readFile}/>
       {error && <p className="import-message" role="alert">{error}</p>}
+      {message && <p className="import-message" role="status">{message}</p>}
       {posts.length > 0 && <>
         <p className="import-count" aria-live="polite">{posts.length} {posts.length === 1 ? 'post' : 'posts'} found. {posts.filter((post) => post.selected).length} selected.</p>
         {dateFallbacks > 0 && <p className="import-note">{dateFallbacks} {dateFallbacks === 1 ? 'post had' : 'posts had'} an unreadable date and will use today&apos;s date.</p>}
@@ -145,8 +205,9 @@ export function LinkedInImport() {
           <td><label className="sr-only" htmlFor={`title-${post.id}`}>Title for post</label><input id={`title-${post.id}`} className="title-edit" value={post.title} onChange={(event) => updatePost(post.id, { title: event.target.value })}/></td>
           <td className="preview-copy">{post.content}</td>
         </tr>)}</tbody></table></div>
-        <button className="import-submit" type="button" disabled>{`Import Selected Posts`}</button>
-        <p className="import-note">Supabase is not connected, so these posts cannot be saved yet. The preview will stay here until you close it.</p>
+        <button className="import-submit" type="button" disabled={saving} onClick={() => void saveSelectedPosts()}>
+          {saving ? 'Saving posts...' : 'Save selected posts'}
+        </button>
       </>}
     </div>}
   </section>

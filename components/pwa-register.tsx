@@ -1,6 +1,11 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+
+type InstallPromptEvent = Event & {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>
+}
 
 export async function clearAppCacheAndReload(): Promise<void> {
   if (typeof window === 'undefined') return
@@ -93,4 +98,71 @@ export function PwaRegister() {
   }, [])
 
   return null
+}
+
+export function PwaInstallButton() {
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null)
+  const [installed, setInstalled] = useState(false)
+  const [showInstructions, setShowInstructions] = useState(false)
+  const [installError, setInstallError] = useState('')
+
+  useEffect(() => {
+    setInstalled(window.matchMedia('(display-mode: standalone)').matches)
+
+    function handleBeforeInstallPrompt(event: Event) {
+      event.preventDefault()
+      setInstallPrompt(event as InstallPromptEvent)
+    }
+
+    function handleAppInstalled() {
+      setInstalled(true)
+      setInstallPrompt(null)
+      setShowInstructions(false)
+    }
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    window.addEventListener('appinstalled', handleAppInstalled)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+      window.removeEventListener('appinstalled', handleAppInstalled)
+    }
+  }, [])
+
+  if (installed) return null
+
+  async function handleInstall() {
+    if (!installPrompt) {
+      setShowInstructions((visible) => !visible)
+      return
+    }
+
+    setInstallError('')
+    try {
+      await installPrompt.prompt()
+      const choice = await installPrompt.userChoice
+      setInstallPrompt(null)
+      if (choice.outcome === 'accepted') setInstalled(true)
+    } catch {
+      setInstallError('The install prompt could not be opened. Use your browser menu to install the app.')
+      setShowInstructions(true)
+    }
+  }
+
+  return (
+    <span className="pwa-install">
+      <button
+        type="button"
+        className="text-button pwa-install-button"
+        aria-expanded={showInstructions}
+        onClick={() => void handleInstall()}
+      >
+        Install app
+      </button>
+      {showInstructions && (
+        <span className="pwa-install-help" role="status">
+          {installError || 'In Chrome on Android, open the menu and choose Install app or Add to Home screen.'}
+        </span>
+      )}
+    </span>
+  )
 }

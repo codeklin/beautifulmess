@@ -1,9 +1,8 @@
-const CACHE_VERSION = 'v1'
+const CACHE_VERSION = 'v3'
 const CACHE_NAME = `beautifulmess-${CACHE_VERSION}`
 
 const STATIC_PRECACHE = [
   '/',
-  '/write',
   '/manifest.webmanifest',
   '/favicon.ico',
   '/apple-touch-icon.png',
@@ -45,6 +44,16 @@ self.addEventListener('fetch', (event) => {
   // Only handle same-origin GET requests or font CDNs
   if (request.method !== 'GET') return
   if (url.origin !== self.location.origin && !url.hostname.includes('fonts.g')) {
+    return
+  }
+
+  if (
+    url.origin === self.location.origin &&
+    ['/write', '/admin', '/auth', '/api'].some((path) =>
+      url.pathname === path || url.pathname.startsWith(`${path}/`)
+    )
+  ) {
+    event.respondWith(fetch(request, { cache: 'no-store' }))
     return
   }
 
