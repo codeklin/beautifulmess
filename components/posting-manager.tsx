@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useId } from 'react'
-import { LinkedInImport } from '@/components/linkedin-import'
 import {
   categoryLabels,
   formatDateTime,
@@ -130,7 +129,7 @@ function getDefaultScheduleTime(): string {
 }
 
 export function PostingManager() {
-  const [activeTab, setActiveTab] = useState<'compose' | 'ledger' | 'import'>('compose')
+  const [activeTab, setActiveTab] = useState<'compose' | 'ledger'>('compose')
   const [writings, setWritings] = useState<Writing[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -415,18 +414,6 @@ export function PostingManager() {
           Schedule ledger
           {scheduledCount > 0 && <span className="tab-pill">{scheduledCount}</span>}
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'import'}
-          className={`manager-tab ${activeTab === 'import' ? 'active' : ''}`}
-          onClick={() => {
-            setActiveTab('import')
-            setMessage('')
-          }}
-        >
-          LinkedIn import
-        </button>
       </div>
 
       {(message || loadError) && (
@@ -704,8 +691,6 @@ export function PostingManager() {
           </div>
         </div>
       )}
-
-      {activeTab === 'import' && <LinkedInImport onImported={refreshWritings} />}
     </div>
   )
 }
