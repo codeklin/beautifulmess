@@ -18,11 +18,12 @@ function ThemeToggle() {
 function Header({ active, onSelect }: { active?: string; onSelect?: (value: Category | 'all') => void }) {
   const [menuOpen, setMenuOpen] = useState(false)
   return <header className="site-header">
-    <Link href="/" className="wordmark">A quiet place</Link>
+    <Link href="/" className="wordmark">BeautifulMess</Link>
     {onSelect ? <nav className="filter-nav" aria-label="Filter writings">{filters.map((item) => <button key={item.value} className={`filter-button ${active === item.value ? 'selected' : ''}`} onClick={() => onSelect(item.value)} aria-pressed={active === item.value}>{item.label}</button>)}</nav> : <Link href="/" className="back-link">Back to journal</Link>}
     <ThemeToggle />
+    <span className="mobile-theme-toggle"><ThemeToggle /></span>
     <button className={`menu-toggle ${menuOpen ? 'is-open' : ''}`} type="button" aria-label={menuOpen ? 'Close menu' : 'Open menu'} aria-expanded={menuOpen} aria-controls="journal-menu" onClick={() => setMenuOpen((open) => !open)}><span/><span/><span/><span className="menu-word">{menuOpen ? 'Close' : 'Menu'}</span></button>
-    {menuOpen && <nav className="mobile-menu" id="journal-menu" aria-label="Journal menu">{onSelect ? <div className="mobile-filters">{filters.map((item) => <button key={item.value} className={`filter-button ${active === item.value ? 'selected' : ''}`} onClick={() => { onSelect(item.value); setMenuOpen(false) }} aria-pressed={active === item.value}>{item.label}</button>)}</div> : <Link className="quiet-link" href="/">Back to journal</Link>}<Link className="quiet-link menu-desk-link" href="/write">Writer&apos;s desk</Link><div className="menu-theme"><span>Appearance</span><ThemeToggle /></div></nav>}
+    {menuOpen && <nav className="mobile-menu" id="journal-menu" aria-label="Journal menu">{onSelect ? <div className="mobile-filters">{filters.map((item) => <button key={item.value} className={`filter-button ${active === item.value ? 'selected' : ''}`} onClick={() => { onSelect(item.value); setMenuOpen(false) }} aria-pressed={active === item.value}>{item.label}</button>)}</div> : <Link className="quiet-link" href="/">Back to journal</Link>}<Link className="quiet-link menu-desk-link" href="/write">Writer&apos;s desk</Link></nav>}
   </header>
 }
 

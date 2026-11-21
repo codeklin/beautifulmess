@@ -3,9 +3,8 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'A quiet place | A writer’s journal',
+  title: 'BeautifulMess | A writer’s journal',
   description: 'A small collection of poems, prose, spoken word, and notes from the day.',
-  generator: 'v0.app',
   icons: {
     icon: [
       {

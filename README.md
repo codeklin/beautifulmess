@@ -1,4 +1,4 @@
-# A quiet place
+# BeautifulMess
 
 A journal in progress. Here you will find notes, poems, prose, spoken-word pieces, and other things worth keeping.
 

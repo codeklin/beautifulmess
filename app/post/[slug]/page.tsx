@@ -9,7 +9,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const writing = sampleWritings.find((item) => item.slug === slug)
-  return { title: writing ? `${writing.title} | A quiet place` : 'Not found | A quiet place' }
+  return { title: writing ? `${writing.title} | BeautifulMess` : 'Not found | BeautifulMess' }
 }
 
 export default async function PostPage({ params }: { params: Promise<{ slug: string }> }) {
