@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
+import { LinkedInImport } from '@/components/linkedin-import'
 import { categoryLabels, formatDate, sampleWritings, type Category, type Writing } from '@/lib/writings'
 
 const filters: Array<{ label: string; value: Category | 'all' }> = [
@@ -73,5 +74,5 @@ function AudioPlayer({ src }: { src: string }) {
 }
 
 export function WriterDesk() {
-  return <main className="reading-shell"><Header/><section className="desk-message"><p className="eyebrow">Writer&apos;s desk</p><h1>A private room for writing.</h1><p>Publishing and editing are paused for now. Connect Supabase and apply the included database setup to enable a private, sign-in protected writing room.</p><Link className="quiet-link" href="/">Back to journal</Link></section></main>
+  return <main className="reading-shell"><Header/><section className="desk-message"><p className="eyebrow">Writer&apos;s desk</p><h1>A private room for writing.</h1><LinkedInImport/><p>Writing and publishing are paused for now. Supabase is not connected, so imported posts can be previewed but not saved.</p><Link className="quiet-link" href="/">Back to journal</Link></section></main>
 }
