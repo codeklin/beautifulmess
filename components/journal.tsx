@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { categoryLabels, formatDate, sampleWritings, type Category, type Writing } from '@/lib/writings'
 
 const filters: Array<{ label: string; value: Category | 'all' }> = [
@@ -9,7 +9,8 @@ const filters: Array<{ label: string; value: Category | 'all' }> = [
 ]
 
 function ThemeToggle() {
-  const [dark, setDark] = useState(() => typeof document !== 'undefined' && document.documentElement.dataset.theme === 'dark')
+  const [dark, setDark] = useState(false)
+  useEffect(() => setDark(document.documentElement.dataset.theme === 'dark'), [])
   return <button className="text-button theme-toggle" onClick={() => { setDark((current) => { document.documentElement.dataset.theme = current ? 'light' : 'dark'; return !current }) }} aria-label={`Switch to ${dark ? 'light' : 'dark'} mode`}>{dark ? 'Light' : 'Dark'}</button>
 }
 
