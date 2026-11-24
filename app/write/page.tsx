@@ -2,7 +2,7 @@ import { WriterDesk } from '@/components/journal'
 import { getAdminConfig } from '@/lib/admin-config'
 
 export const metadata = {
-  title: 'Write | BeautifulMess',
+  title: 'Write | UniqueMe',
   robots: { index: false, follow: false },
 }
 export const dynamic = 'force-dynamic'

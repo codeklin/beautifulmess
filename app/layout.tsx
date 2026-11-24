@@ -4,7 +4,7 @@ import { PwaRegister } from '@/components/pwa-register'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'BeautifulMess | A writer’s journal',
+  title: 'UniqueMe | A writer’s journal',
   description: 'A journal of writing and spoken-word pieces.',
   manifest: '/manifest.webmanifest',
   icons: {
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'BeautifulMess',
+    title: 'UniqueMe',
   },
 }
 

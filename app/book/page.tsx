@@ -7,8 +7,8 @@ import {
 } from '@/lib/book-store'
 
 export const metadata: Metadata = {
-  title: 'Book | BeautifulMess',
-  description: 'A book from BeautifulMess.',
+  title: 'Book | UniqueMe',
+  description: 'A book from UniqueMe.',
 }
 
 export const dynamic = 'force-dynamic'

@@ -16,70 +16,8 @@ type AdminApiResponse = {
   message?: string
 }
 
-const legacyStorageKey = 'beautifulmess_writings'
-const writingCategories: Category[] = ['linkedin', 'poem', 'prose', 'spoken_word']
-const writingStatuses: WritingStatus[] = ['draft', 'scheduled', 'published']
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isWritingCategory(value: unknown): value is Category {
-  return typeof value === 'string' && writingCategories.some((category) => category === value)
-}
-
-function isWritingStatus(value: unknown): value is WritingStatus {
-  return typeof value === 'string' && writingStatuses.some((status) => status === value)
-}
-
-function readLegacyWritings(): WritingInput[] {
-  const raw = window.localStorage.getItem(legacyStorageKey)
-  if (!raw) return []
-
-  const parsed: unknown = JSON.parse(raw)
-  if (!Array.isArray(parsed)) {
-    throw new Error('The saved browser writings could not be read.')
-  }
-
-  return parsed.map((value): WritingInput => {
-    if (!isRecord(value)) throw new Error('A saved browser writing has invalid details.')
-    const { title, slug, category, content, status, is_published, scheduled_for, created_at } = value
-    if (
-      typeof title !== 'string' ||
-      typeof slug !== 'string' ||
-      !isWritingCategory(category) ||
-      typeof content !== 'string' ||
-      (status !== undefined && !isWritingStatus(status)) ||
-      (is_published !== undefined && typeof is_published !== 'boolean') ||
-      (scheduled_for !== undefined && scheduled_for !== null && typeof scheduled_for !== 'string') ||
-      typeof created_at !== 'string'
-    ) {
-      throw new Error('A saved browser writing has invalid details.')
-    }
-
-    let normalizedStatus: WritingStatus =
-      status === 'draft' || status === 'scheduled' ? status : 'published'
-    let normalizedSchedule = typeof scheduled_for === 'string' ? scheduled_for : null
-    if (
-      normalizedStatus === 'scheduled' &&
-      normalizedSchedule &&
-      Date.parse(normalizedSchedule) <= Date.now()
-    ) {
-      normalizedStatus = 'published'
-      normalizedSchedule = null
-    }
-    return {
-      title,
-      slug,
-      category,
-      content,
-      audio_url: typeof value.audio_url === 'string' ? value.audio_url : null,
-      is_published: normalizedStatus !== 'draft',
-      status: normalizedStatus,
-      scheduled_for: normalizedSchedule,
-      created_at,
-    }
-  })
 }
 
 async function requestAdminWritings(
@@ -146,9 +84,6 @@ export function PostingManager() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [legacyCount, setLegacyCount] = useState(0)
-  const [legacyError, setLegacyError] = useState('')
-  const [migratingLegacy, setMigratingLegacy] = useState(false)
 
   // Composer fields
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -202,14 +137,6 @@ export function PostingManager() {
     }
   }, [])
 
-  useEffect(() => {
-    try {
-      setLegacyCount(readLegacyWritings().length)
-    } catch (error) {
-      setLegacyError(getErrorMessage(error, 'Saved browser writings could not be read.'))
-    }
-  }, [])
-
   async function refreshWritings() {
     const result = await requestAdminWritings('GET')
     if (!Array.isArray(result.writings)) {
@@ -217,33 +144,6 @@ export function PostingManager() {
     }
     setWritings(result.writings)
     setLoadError('')
-  }
-
-  async function migrateLegacyWritings() {
-    setMigratingLegacy(true)
-    setLegacyError('')
-    let saved = false
-    try {
-      const legacyWritings = readLegacyWritings()
-      if (!legacyWritings.length) {
-        setLegacyCount(0)
-        return
-      }
-      await requestAdminWritings('POST', legacyWritings)
-      saved = true
-      window.localStorage.removeItem(legacyStorageKey)
-      setLegacyCount(0)
-      await refreshWritings()
-      setMessage(`${legacyWritings.length} browser-saved ${legacyWritings.length === 1 ? 'writing was' : 'writings were'} moved to your journal.`)
-    } catch (error) {
-      setLegacyError(
-        saved
-          ? 'Your writings were saved, but the list could not refresh. Reload this page to see them.'
-          : getErrorMessage(error, 'Browser-saved writings could not be moved.'),
-      )
-    } finally {
-      setMigratingLegacy(false)
-    }
   }
 
   function resetForm() {
@@ -507,16 +407,6 @@ export function PostingManager() {
           {message || loadError}
         </div>
       )}
-      {legacyCount > 0 && (
-        <div className="manager-feedback" role="status">
-          <p>{legacyCount} browser-saved {legacyCount === 1 ? 'writing is' : 'writings are'} not in your shared journal yet.</p>
-          <button type="button" className="ledger-action-btn" disabled={migratingLegacy} onClick={() => void migrateLegacyWritings()}>
-            {migratingLegacy ? 'Moving writings...' : 'Move browser writings to journal'}
-          </button>
-        </div>
-      )}
-      {legacyError && <p className="manager-feedback" role="alert">{legacyError}</p>}
-
       {/* Tab 1: Compose / Edit Form */}
       {activeTab === 'compose' && (
         <form className="composer-card" onSubmit={handleSave}>

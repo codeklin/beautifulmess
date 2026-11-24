@@ -1,4 +1,4 @@
-export const ADMIN_SESSION_COOKIE = 'beautifulmess_admin_session'
+export const ADMIN_SESSION_COOKIE = 'uniqueme_admin_session'
 export const ADMIN_SESSION_SECONDS = 8 * 60 * 60
 
 function base64UrlEncode(bytes: Uint8Array): string {
@@ -27,7 +27,7 @@ async function getSigningKey(password: string): Promise<CryptoKey> {
 
 export async function createAdminSession(password: string, now = Date.now()): Promise<string> {
   const expiresAt = Math.floor(now / 1000) + ADMIN_SESSION_SECONDS
-  const payload = `beautifulmess-admin:${expiresAt}`
+  const payload = `uniqueme-admin:${expiresAt}`
   const signature = await crypto.subtle.sign(
     'HMAC',
     await getSigningKey(password),
@@ -63,7 +63,7 @@ export async function isValidAdminSession(
       'HMAC',
       await getSigningKey(password),
       signature,
-      new TextEncoder().encode(`beautifulmess-admin:${expiresAt}`),
+      new TextEncoder().encode(`uniqueme-admin:${expiresAt}`),
     )
   } catch {
     return false

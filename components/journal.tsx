@@ -162,7 +162,7 @@ function Header({
 
   return (
     <header className="site-header">
-      <Link href="/" className="wordmark">BeautifulMess</Link>
+      <Link href="/" className="wordmark">UniqueMe</Link>
       {onSelect ? (
         <nav className="filter-nav" aria-label="Filter writings">
           {filters.map((item) => (
@@ -205,7 +205,7 @@ function Header({
         <nav className="mobile-menu" id="journal-menu" aria-label="Journal menu">
           <div className="mobile-menu-top">
             <Link href="/" className="wordmark mobile-menu-wordmark" onClick={() => setMenuOpen(false)}>
-              BeautifulMess
+              UniqueMe
             </Link>
             <button
               type="button"
@@ -297,9 +297,8 @@ export function JournalHome({
     <main className="reading-shell">
       <Header active={category} onSelect={setCategory} showBackLink={false} showAdminLink={showAdminLink} />
       <section className="journal-intro">
-        <span className="eyebrow-badge">Writing, kept here</span>
-        <h1>A journal in progress.</h1>
-        <p className="intro-copy">Words gathered along the way, written down and left here.</p>
+        <h1>Raw thoughts. Real ones.</h1>
+        <p className="intro-copy">This is where I think out loud. No polish, no performance. If you want the focused version, follow me on LinkedIn.</p>
       </section>
       <section className="journal-search" role="search">
         <label className="field-label" htmlFor="journal-search">Search writings</label>

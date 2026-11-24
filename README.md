@@ -1,4 +1,4 @@
-# BeautifulMess
+# UniqueMe
 
 A journal of writing, LinkedIn pieces, and spoken-word recordings.
 

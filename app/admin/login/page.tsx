@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { AdminLoginForm } from '@/components/admin-login-form'
 
 export const metadata: Metadata = {
-  title: 'Write | BeautifulMess',
+  title: 'Write | UniqueMe',
   robots: { index: false, follow: false },
 }
 
@@ -18,7 +18,7 @@ export default async function AdminLoginPage({
   return (
     <main className="reading-shell">
       <header className="site-header">
-        <Link href="/" className="wordmark">BeautifulMess</Link>
+        <Link href="/" className="wordmark">UniqueMe</Link>
       </header>
       <section className="desk-message">
         <span className="eyebrow-badge">Write</span>

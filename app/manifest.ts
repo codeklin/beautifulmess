@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'BeautifulMess | A writer’s journal',
-    short_name: 'BeautifulMess',
+    name: 'UniqueMe | A writer’s journal',
+    short_name: 'UniqueMe',
     description: 'A journal of writing and spoken-word pieces.',
     id: '/',
     start_url: '/',

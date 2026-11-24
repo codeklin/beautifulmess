@@ -13,13 +13,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params
   try {
     const writing = (await getPublicWritings()).find((item) => item.slug === slug)
-    return { title: writing ? `${writing.title} | BeautifulMess` : 'Not found | BeautifulMess' }
+    return { title: writing ? `${writing.title} | UniqueMe` : 'Not found | UniqueMe' }
   } catch (error) {
     if (!(error instanceof WritingStoreError) && !(error instanceof WritingStoreNotConfiguredError)) {
       throw error
     }
     console.error('Unable to load public writing metadata:', error.message)
-    return { title: 'BeautifulMess' }
+    return { title: 'UniqueMe' }
   }
 }
 

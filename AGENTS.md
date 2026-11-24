@@ -2,7 +2,7 @@
 
 ## Product and voice
 
-- This project is a quiet personal journal called "BeautifulMess." Keep its language clear, gentle, and everyday.
+- This project is a quiet personal journal called "UniqueMe." Keep its language clear, gentle, and everyday.
 - Preserve the paper-and-ink look, restrained colors, serif reading text, hairline borders, and simple links.
 - In user-facing copy, do not use em dashes, emojis, decorative icons, or technical language unless asked.
 - Keep public writing focused on the reader. Do not put setup, framework, or implementation details in the reader-facing README.
