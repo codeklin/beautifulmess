@@ -1,5 +1,5 @@
-const CACHE_VERSION = 'v3'
-const CACHE_NAME = `beautifulmess-${CACHE_VERSION}`
+const CACHE_VERSION = 'v4'
+const CACHE_NAME = `uniqueme-${CACHE_VERSION}`
 
 const STATIC_PRECACHE = [
   '/',
