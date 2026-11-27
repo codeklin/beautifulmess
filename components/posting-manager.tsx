@@ -74,8 +74,16 @@ function getDefaultScheduleTime(): string {
 }
 
 function toLocalDateTime(date: Date): string {
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000)
-  return local.toISOString().slice(0, 16)
+  // Format the date as a local datetime string (YYYY-MM-DDTHH:mm) without
+  // adjusting the value — just zero-pad each component in local time.
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return (
+    date.getFullYear() +
+    '-' + pad(date.getMonth() + 1) +
+    '-' + pad(date.getDate()) +
+    'T' + pad(date.getHours()) +
+    ':' + pad(date.getMinutes())
+  )
 }
 
 export function PostingManager() {
@@ -304,10 +312,7 @@ export function PostingManager() {
     } else if (item.status === 'scheduled' || item.scheduled_for) {
       setPublishMode('schedule')
       if (item.scheduled_for) {
-        const d = new Date(item.scheduled_for)
-        const offset = d.getTimezoneOffset()
-        const local = new Date(d.getTime() - offset * 60 * 1000)
-        setScheduledFor(local.toISOString().slice(0, 16))
+        setScheduledFor(toLocalDateTime(new Date(item.scheduled_for)))
       }
     } else {
       setPublishMode('now')
@@ -355,7 +360,7 @@ export function PostingManager() {
     if (ledgerFilter === 'all') return true
     if (ledgerFilter === 'draft') return item.status === 'draft'
     if (ledgerFilter === 'scheduled') {
-      return item.status === 'scheduled' || (item.scheduled_for && !isWritingLive(item))
+      return (item.status === 'scheduled' || item.scheduled_for != null) && !isWritingLive(item)
     }
     if (ledgerFilter === 'published') {
       return isWritingLive(item)
@@ -364,7 +369,7 @@ export function PostingManager() {
   })
 
   const scheduledCount = writings.filter(
-    (item) => item.status === 'scheduled' || (item.scheduled_for && !isWritingLive(item))
+    (item) => (item.status === 'scheduled' || item.scheduled_for != null) && !isWritingLive(item)
   ).length
   const draftsCount = writings.filter((item) => item.status === 'draft').length
   const publishedCount = writings.filter((item) => isWritingLive(item)).length

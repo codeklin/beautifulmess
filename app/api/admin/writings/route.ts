@@ -46,7 +46,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function parseWriting(value: unknown): WritingInput | null {
+function parseWriting(value: unknown, options: { requireFutureSchedule?: boolean } = {}): WritingInput | null {
   if (!isRecord(value)) return null
   const { title, slug, category, content, audio_url, is_published, status, scheduled_for, created_at } = value
   if (
@@ -69,12 +69,18 @@ function parseWriting(value: unknown): WritingInput | null {
     return null
   }
 
+  // For new posts the schedule time must be in the future.
+  // For edits (PATCH), a previously-set schedule that has since passed is kept as-is.
+  if (status === 'scheduled' && !scheduled_for) return null
   if (
+    options.requireFutureSchedule &&
     status === 'scheduled' &&
-    (!scheduled_for || Date.parse(scheduled_for) <= Date.now())
+    scheduled_for &&
+    Date.parse(scheduled_for) <= Date.now()
   ) {
     return null
   }
+
   if ((status === 'draft' && is_published) || (status !== 'draft' && !is_published)) return null
   if (scheduled_for && Number.isNaN(Date.parse(scheduled_for))) return null
   if (created_at && Number.isNaN(Date.parse(created_at))) return null
@@ -147,7 +153,7 @@ export async function POST(request: NextRequest) {
   }
   const writings: WritingInput[] = []
   for (const entry of entries) {
-    const writing = parseWriting(entry)
+    const writing = parseWriting(entry, { requireFutureSchedule: true })
     if (!writing) return jsonResponse({ message: 'One or more writings have invalid details.' }, 400)
     writings.push(writing)
   }
@@ -171,9 +177,8 @@ export async function PATCH(request: NextRequest) {
       ? body
       : jsonResponse({ message: 'Choose a writing to update.' }, 400)
   }
-  if (hasPastSchedule(body)) {
-    return jsonResponse({ message: 'Choose a future date and time, or publish immediately.' }, 400)
-  }
+  // For PATCH, a past scheduled_for is allowed (the writer may be updating the content
+  // of a piece whose schedule has already fired). Only new POSTs must have a future time.
   const writing = parseWriting(body)
   if (!writing) return jsonResponse({ message: 'The writing has invalid details.' }, 400)
 
